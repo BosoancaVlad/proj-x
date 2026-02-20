@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Password Security Evaluator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        input {
+            padding: 15px;
+            width: 70%;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input:focus {
+            border-color: #007bff;
+        }
+
+        button {
+            padding: 15px 25px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .safe {
+            border-left: 8px solid #2ecc71;
+            background: #e8f5e9;
+        }
+
+        .danger {
+            border-left: 8px solid #e74c3c;
+            background: #ffebee;
+        }
+
+        .warning {
+            border-left: 8px solid #f1c40f;
+            background: #fffde7;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+
+        ul {
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>🔐 Comprehensive Password Evaluation</h2>
+
+    <div class="box">
+        <form method="POST">
+            <input type="text" name="password" placeholder="Type a password to analyze..." required autocomplete="off">
+            <br><br>
+            <button type="submit">Analyze Password</button>
+        </form>
+    </div>
+
+    {% if result %}
+    <div class="result {% if result.leaked %}danger{% elif result.score < 3 %}warning{% else %}safe{% endif %}">
+        <h3>Analysis Results</h3>
+
+        <p><strong>Input:</strong> {{ result.password }}</p>
+
+        <p><strong>Breach Status:</strong>
+            {% if result.leaked %}
+            <span style="color: #c0392b; font-weight: bold; font-size: 1.1em;">❌ FOUND IN ROCKYOU DATABASE (Critical
+                Risk)</span>
+            {% else %}
+            <span style="color: #27ae60; font-weight: bold; font-size: 1.1em;">✅ Clean (Not in loaded wordlist)</span>
+            {% endif %}
+        </p>
+
+        <hr>
+
+        <p><strong>Strength Score:</strong>
+            <span style="font-weight:bold; font-size:1.2em;">{{ result.score }} / 4</span>
+        </p>
+        <p><strong>Estimated Guesses to Crack:</strong> {{ result.guesses }}</p>
+
+        {% if result.feedback and result.feedback != "None" %}
+        <div style="background: rgba(0,0,0,0.05); padding: 10px; border-radius: 5px;">
+            <p><strong>⚠️ Warning:</strong> {{ result.feedback }}</p>
+        </div>
+        {% endif %}
+
+        {% if result.suggestions %}
+        <p><strong>💡 Suggestions to improve:</strong></p>
+        <ul>
+            {% for tip in result.suggestions %}
+            <li>{{ tip }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+</body>
+
+</html>
