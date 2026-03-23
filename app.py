@@ -4,8 +4,14 @@ import pymysql
 import difflib  #compare strings!
 from flask import jsonify 
 from flask_cors import CORS #to run: pip install flask-cors
+from cryptography.fernet import Fernet
 
 app = Flask(__name__)
+
+MASTER_KEY = b'3Td06nuL0-XC_1j1B4N4FnfdD8tdhMOMvlJcgrCyH5s='
+cipher_suite = Fernet(MASTER_KEY)
+
+
 app.secret_key = 'super_secret_key'
 CORS(app) #allows Chrome Extension to talk to local server
 
@@ -29,7 +35,13 @@ def check_leaked(password):
 def save_to_vault(website, username, password):
     db = get_db_connection()
     cursor = db.cursor()
-    cursor.execute("INSERT INTO my_vault (website, username, password) VALUES (%s, %s, %s)", (website, username, password))
+
+    #encrypt the password
+    encrypted_password = cipher_suite.encrypt(password.encode()).decode()
+
+    query = "INSERT INTO my_vault (website, username, password) VALUES (%s, %s, %s)"
+    cursor.execute(query, (website, username, encrypted_password))
+    
     db.commit()
     db.close()
 
@@ -85,6 +97,12 @@ def home():
             
         return redirect(url_for('home'))
     saved_accounts = get_vault_items()
+
+    for account in saved_accounts:
+        try:
+            account['password'] = cipher_suite.decrypt(account['password'].encode()).decode()
+        except Exception as e:
+            pass # If it's an old, unencrypted password we don't consider it
     
     return render_template('index.html', saved_accounts=saved_accounts)
 
@@ -105,21 +123,29 @@ def delete_password(id):
 @app.route('/api/get_credentials', methods=['POST'])
 def api_get_credentials():
     data = request.json
-    website_url = data.get('url') # like 'facebook.com'
+    website_url = data.get('url') 
     
     items = get_vault_items()
     for account in items:
         if website_url in account['website'] or account['website'] in website_url:
+            
+            # ✨ NEW: The Safety Net!
+            try:
+                decrypted_password = cipher_suite.decrypt(account['password'].encode()).decode()
+            except Exception:
+                # If it crashes, it means this is an old password from yesterday. Just use it as-is!
+                decrypted_password = account['password'] 
+            
             return jsonify({
                 "found": True,
                 "username": account['username'],
-                "password": account['password']
+                "password": decrypted_password
             })
             
     return jsonify({"found": False})
 
 #API 2: check a new password against my security rules
-@app.route('/api/check_security', methods=['POST'])
+@app.route('/api/password/check', methods=['POST'])
 def api_check_security():
     data = request.json
     new_password = data.get('password')
@@ -149,6 +175,12 @@ def api_save_credentials():
     save_to_vault(website, username, password)
     
     return jsonify({"status": "success", "message": "Saved to vault!"})
+
+# Health-Check endpoint
+@app.route('/info', methods=['GET'])
+def api_info():
+    #a simple hello message
+    return jsonify({"message": "hello"})
 
 if __name__ == '__main__':
     app.run(debug=True)

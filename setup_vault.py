@@ -2,7 +2,7 @@ import mysql.connector
 
 print("Connecting to database...")
 
-# Connect to your existing database
+# connect to your existing database
 db = mysql.connector.connect(
   host="localhost",
   user="root",
@@ -11,7 +11,7 @@ db = mysql.connector.connect(
 )
 cursor = db.cursor()
 
-# Create the new Vault table
+# create the new Vault table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS my_vault (
     id INT AUTO_INCREMENT PRIMARY KEY,

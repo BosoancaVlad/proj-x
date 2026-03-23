@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 250px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 15px;
+            text-align: center;
+            background-color: #ffffff;
+            margin: 0;
+        }
+
+        h2 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 18px;
+        }
+
+        /* styling for the server status box */
+        .status-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+
+        /* glowing dot */
+        .dot {
+            height: 12px;
+            width: 12px;
+            background-color: #ccc;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .online {
+            background-color: #28a745;
+            box-shadow: 0 0 8px #28a745;
+        }
+
+        .offline {
+            background-color: #dc3545;
+            box-shadow: 0 0 8px #dc3545;
+        }
+
+        #status-text {
+            font-weight: bold;
+            font-size: 14px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2> Secure Vault</h2>
+
+    <div class="status-container">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">Checking server...</span>
+    </div>
+
+    <script src="popup.js"></script>
+
+</body>
+
+</html>

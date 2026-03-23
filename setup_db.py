@@ -2,7 +2,7 @@ import mysql.connector
 
 print("Connecting to MariaDB...")
 
-# 1. Connect to the database server
+# connect to the database server
 db = mysql.connector.connect(
   host="localhost",
   user="root",
@@ -11,12 +11,12 @@ db = mysql.connector.connect(
 
 cursor = db.cursor()
 
-# 2. Create the Database (The Room)
+# create the Database (The Room)
 cursor.execute("CREATE DATABASE IF NOT EXISTS password_db")
 cursor.execute("USE password_db")
 
-# 3. Create the Table (The Filing Cabinet)
-# Notice the "INDEX(password)" - this is the magic trick that makes searching 14 million rows instant!
+# create the Table (The Filing Cabinet)
+#"INDEX(password)" - makes searching 14 million rows instant
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS leaked_passwords (
     id INT AUTO_INCREMENT PRIMARY KEY,

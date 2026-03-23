@@ -23,5 +23,9 @@
                 "content.js"
             ]
         }
-    ]
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "Vlad's Secure Vault"
+    }
 }

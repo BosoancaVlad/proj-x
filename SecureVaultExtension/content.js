@@ -1,13 +1,17 @@
 console.log("🕵️‍♂️ Secure Vault Extension is scanning...");
 let hasAutofilled = false;
 
-//
+// 🧪 TEMPORARY TEST: Ping the server as soon as the page loads
+chrome.runtime.sendMessage({ action: "pingServer" }, (response) => {
+    console.log("📡 Server Ping Result:", response);
+});
+
 function showToast(message, isError = true, saveAction = null) {
     const toast = document.createElement("div");
 
     let htmlContent = isError ? `<strong>REFUSED:</strong> ${message}` : `<strong>SAFE:</strong> ${message}`;
 
-    //Save button!
+    //save button
     if (!isError && saveAction) {
         htmlContent += `<br><button id="vault-save-btn" style="margin-top: 12px; padding: 6px 12px; background: white; color: #28a745; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%;">Save to My Vault</button>`;
     }
