@@ -5,6 +5,8 @@ import difflib  #compare strings!
 from flask import jsonify 
 from flask_cors import CORS #to run: pip install flask-cors
 from cryptography.fernet import Fernet
+import hashlib
+import requests
 
 app = Flask(__name__)
 
@@ -25,12 +27,30 @@ def get_db_connection():
     )
 
 def check_leaked(password):
-    db = get_db_connection()
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM leaked_passwords WHERE password = %s", (password,))
-    match = cursor.fetchone()
-    db.close()
-    return bool(match)
+    #scramble user's password using SHA-1 math(gibberish)
+    sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+    
+    #first 5 characters, and the rest
+    first_5 = sha1_password[:5]
+    the_rest = sha1_password[5:]
+    
+    #send ONLY the first 5 characters to HIBP server
+    url = f"https://api.pwnedpasswords.com/range/{first_5}"
+    
+    try:
+        response = requests.get(url)
+        
+        #Check if rest of the gibberish is inside the leaked list
+        if response.status_code == 200:
+            hashes = (line.split(':') for line in response.text.splitlines())
+            for h, count in hashes:
+                if h == the_rest:
+                    return True 
+        return False 
+        
+    except Exception as e:
+        print(f"API Error: {e}")
+        return False #if the API crashes/no internet, let the user proceed
 
 def save_to_vault(website, username, password):
     db = get_db_connection()
