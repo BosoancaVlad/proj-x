@@ -8,6 +8,7 @@ from cryptography.fernet import Fernet
 import hashlib
 import requests
 
+
 app = Flask(__name__)
 
 MASTER_KEY = b'3Td06nuL0-XC_1j1B4N4FnfdD8tdhMOMvlJcgrCyH5s='
