@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from zxcvbn import zxcvbn
 import pymysql
@@ -7,11 +8,16 @@ from flask_cors import CORS #to run: pip install flask-cors
 from cryptography.fernet import Fernet
 import hashlib
 import requests
+import os
+from dotenv import load_dotenv
 
+# 1. This tells Python to open the hidden .env file and read it
+load_dotenv()
+
+MASTER_KEY = os.getenv("MASTER_KEY").encode('utf-8')
 
 app = Flask(__name__)
 
-MASTER_KEY = b'3Td06nuL0-XC_1j1B4N4FnfdD8tdhMOMvlJcgrCyH5s='
 cipher_suite = Fernet(MASTER_KEY)
 
 
@@ -21,10 +27,11 @@ CORS(app) #allows Chrome Extension to talk to local server
 #database connection
 def get_db_connection():
     return pymysql.connect(
-        host="127.0.0.1", 
-        user="root",
-        password="bscvlad692004",
-        database="password_db"
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=int(os.getenv("DB_PORT")), # Remember, ports must be integers
+        database=os.getenv("DB_NAME")
     )
 
 def check_leaked(password):
