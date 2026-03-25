@@ -157,7 +157,7 @@ def api_get_credentials():
     for account in items:
         if website_url in account['website'] or account['website'] in website_url:
             
-            # ✨ NEW: The Safety Net!
+            #Safety Net
             try:
                 decrypted_password = cipher_suite.decrypt(account['password'].encode()).decode()
             except Exception:
