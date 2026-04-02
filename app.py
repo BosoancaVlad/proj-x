@@ -119,6 +119,7 @@ def get_similar_password(new_password):
             return account['website']
     return None  #Returns None if no similar passwords are found
 
+#register page
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -142,6 +143,7 @@ def register():
             
     return render_template('register.html')
 
+#login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -164,6 +166,7 @@ def login():
             
     return render_template('login.html')
 
+#logout
 @app.route('/logout')
 def logout():
     session.clear()
@@ -171,7 +174,7 @@ def logout():
     return redirect(url_for('login'))
 
 
-
+#home page
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def home():
@@ -215,6 +218,7 @@ def home():
     
     return render_template('index.html', saved_accounts=saved_accounts)
 
+#delete a password
 @app.route('/delete/<int:id>', methods=['POST'])
 def delete_password(id):
     db = get_db_connection()
@@ -225,12 +229,14 @@ def delete_password(id):
     db.commit()
     db.close()
     
-    flash("🗑️ Password deleted successfully!", "success")
+    flash(" Password deleted successfully!", "success")
     return redirect(url_for('home'))
 
-#API 1: check if we have a password for the current website
+#check if we have a password for the current website
 @app.route('/api/get_credentials', methods=['POST'])
 def api_get_credentials():
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Unauthorized!"})  
     data = request.json
     website_url = data.get('url') 
     
@@ -253,9 +259,11 @@ def api_get_credentials():
             
     return jsonify({"found": False})
 
-#API 2: check a new password against my security rules
+#check a new password against my security rules
 @app.route('/api/password/check', methods=['POST'])
 def api_check_security():
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Unauthorized!"}) 
     data = request.json
     new_password = data.get('password')
     website = data.get('url')
@@ -273,9 +281,11 @@ def api_check_security():
     else:
         return jsonify({"status": "approved", "reason": "Password is secure."})
 
-#API 3: save a new secure password to the vault directly from the extension
+#save a new secure password to the vault directly from the extension
 @app.route('/api/save_credentials', methods=['POST'])
 def api_save_credentials():
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Unauthorized!"}) 
     data = request.json
     website = data.get('url')
     username = data.get('username')
@@ -285,11 +295,35 @@ def api_save_credentials():
     
     return jsonify({"status": "success", "message": "Saved to vault!"})
 
-# Health-Check endpoint
+# Lets the extension log in
+@app.route('/api/login', methods=['POST'])
+def api_extension_login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+    user = cursor.fetchone()
+    db.close()
+    
+    # Verify the hash just like the web app does
+    if user and check_password_hash(user['password_hash'], password):
+        session['user_id'] = user['id']
+        session['username'] = user['username']
+        return jsonify({"status": "success", "message": "Logged in!"})
+    else:
+        return jsonify({"status": "error", "message": "Invalid credentials"})
+
+
+# Health-Check endpoint updated to check for sessions
 @app.route('/info', methods=['GET'])
 def api_info():
-    #a simple hello message
-    return jsonify({"message": "hello"})
+    if 'user_id' in session:
+        return jsonify({"status": "logged_in", "username": session['username']})
+    else:
+        return jsonify({"status": "logged_out"})
 
 if __name__ == '__main__':
     app.run(debug=True)

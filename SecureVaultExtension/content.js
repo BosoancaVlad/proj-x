@@ -1,9 +1,21 @@
-console.log("🕵️‍♂️ Secure Vault Extension is scanning...");
+console.log("Secure Vault Extension is scanning...");
 let hasAutofilled = false;
+let isVaultUnlocked = false; // KILLSWITCH
 
-// Ping the server as soon as the page loads
+//Listen for a wake-up call from the popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "wakeUpScanner") {
+        isVaultUnlocked = true;
+        console.log("Vault unlocked! Scanner is now active.");
+    }
+});
+
+//Ping the server as soon as the page loads
 chrome.runtime.sendMessage({ action: "pingServer" }, (response) => {
     console.log("Server Ping Result:", response);
+    if (response && response.status === "logged_in") {
+        isVaultUnlocked = true; //Turn the scanner ON
+    }
 });
 
 function showToast(message, isError = true, saveAction = null) {
@@ -45,6 +57,7 @@ function showToast(message, isError = true, saveAction = null) {
 }
 
 setInterval(() => {
+    if (!isVaultUnlocked) return;// if vault is locked, do not scan
     if (hasAutofilled) return;
 
     const passwordInputs = document.querySelectorAll('input[type="password"]');

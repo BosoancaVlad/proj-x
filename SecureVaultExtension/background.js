@@ -29,10 +29,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     //fourth action: check if the server is alive   
     if (request.action === "pingServer") {
-        fetch("http://127.0.0.1:5000/info") //no POST or body needed for a GET request
+        fetch("http://127.0.0.1:5000/info", {
+            credentials: "include" //check for the session cookie
+        })
             .then(response => response.json())
             .then(data => sendResponse(data))
             .catch(error => sendResponse({ error: "Server is offline" }));
+        return true;
+    }
+
+    //fifth action: extension login
+    if (request.action === "extensionLogin") {
+        fetch("http://127.0.0.1:5000/api/login", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            credentials: "include", //ID badge to stay logged in
+            body: JSON.stringify({ username: request.username, password: request.password })
+        }).then(r => r.json()).then(d => sendResponse(d)).catch(e => sendResponse({ error: "Failed" }));
         return true;
     }
 });
