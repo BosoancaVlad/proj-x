@@ -10,8 +10,10 @@ import hashlib
 import requests
 import os
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
-# 1. This tells Python to open the hidden .env file and read it
+#tells Python to open the hidden .env file and read it
 load_dotenv()
 
 MASTER_KEY = os.getenv("MASTER_KEY").encode('utf-8')
@@ -27,14 +29,32 @@ CORS(app) #allows Chrome Extension to talk to local server
 #database connection
 def get_db_connection():
     return pymysql.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        port=int(os.getenv("DB_PORT")), # Remember, ports must be integers
-        database=os.getenv("DB_NAME")
+        host="127.0.0.1", 
+        user="root",
+        password="bscvlad692004",
+        database="password_db"
     )
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash("Please log in to access your vault.", "danger")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def check_leaked_local(password):
+    db = get_db_connection()
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM leaked_passwords WHERE password = %s", (password,))
+    match = cursor.fetchone()
+    db.close()
+    return bool(match)
+
+
 def check_leaked(password):
+
     #scramble user's password using SHA-1 math(gibberish)
     sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
     
@@ -60,23 +80,29 @@ def check_leaked(password):
         print(f"API Error: {e}")
         return False #if the API crashes/no internet, let the user proceed
 
+
 def save_to_vault(website, username, password):
+    user_id = session.get('user_id') #get the logged-in user's ID
+    if not user_id: return
     db = get_db_connection()
     cursor = db.cursor()
 
     #encrypt the password
     encrypted_password = cipher_suite.encrypt(password.encode()).decode()
 
-    query = "INSERT INTO my_vault (website, username, password) VALUES (%s, %s, %s)"
-    cursor.execute(query, (website, username, encrypted_password))
+    query = "INSERT INTO my_vault (user_id, website, username, password) VALUES (%s, %s, %s, %s)"
+    cursor.execute(query, (user_id, website, username, encrypted_password))
     
     db.commit()
     db.close()
 
 def get_vault_items():
+    user_id = session.get('user_id')
+    if not user_id: return []
+
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
-    cursor.execute("SELECT * FROM my_vault")
+    cursor.execute("SELECT * FROM my_vault WHERE user_id = %s", (user_id,))
     items = cursor.fetchall()
     db.close()
     return items
@@ -93,7 +119,61 @@ def get_similar_password(new_password):
             return account['website']
     return None  #Returns None if no similar passwords are found
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        # Hash the master password before saving!
+        hashed_pw = generate_password_hash(password)
+        
+        db = get_db_connection()
+        cursor = db.cursor()
+        try:
+            cursor.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, hashed_pw))
+            db.commit()
+            flash("Account created! You can now log in.", "success")
+            return redirect(url_for('login'))
+        except pymysql.err.IntegrityError:
+            flash("Username already exists!", "danger")
+        finally:
+            db.close()
+            
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        db = get_db_connection()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        db.close()
+        
+        # Check if user exists AND password matches the hash
+        if user and check_password_hash(user['password_hash'], password):
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            return redirect(url_for('home'))
+        else:
+            flash("Invalid username or password.", "danger")
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash("You have been logged out.", "success")
+    return redirect(url_for('login'))
+
+
+
 @app.route('/', methods=['GET', 'POST'])
+@login_required
 def home():
     if request.method == 'POST':
         website = request.form['website']
@@ -107,10 +187,11 @@ def home():
         #calculate stats
         stats = zxcvbn(password)
         is_leaked = check_leaked(password)
+        is_leaked_local=check_leaked_local(password)
         similar_to_website = get_similar_password(password)
         
         
-        if is_leaked:
+        if is_leaked or is_leaked_local:
             flash(f"<strong>REFUSED!</strong> This password was found in leaked password lists. Change it now for <a href='{clean_url}' target='_blank' style='color: #721c24; text-decoration: underline;'>{website}</a>.", "danger")
             
         elif stats['score'] < 3:

@@ -17,6 +17,8 @@
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+            /*floating button to stay in the box*/
         }
 
         /* input styling */
@@ -150,80 +152,92 @@
 </head>
 
 <body>
-    <div class="container">
-        <h2 style="text-align: center; color: #333;">My Secure Password Vault</h2>
-        <p style="text-align: center; color: #666; margin-bottom: 30px;">Securely store your credentials with breach
-            detection.</p>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="{{ category }}">{{ message | safe }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+    <body>
+        <div class="container">
+            <a href="{{ url_for('logout') }}"
+                style="position: absolute; top: 20px; right: 25px; background-color: #0e0a0a; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                Log Out
+            </a>
 
-        <form method="POST" style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
-            <label><strong>Website:</strong></label>
-            <input type="text" name="website" placeholder="e.g., facebook.com" required>
+            <h2 style="text-align: center; color: #333;">My Secure Password Vault</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 30px;">Welcome back, <strong>{{
+                    session['username'] }}</strong>! Securely store your credentials with breach detection.</p>
 
-            <label><strong>Email or Username </strong></label>
-            <input type="text" name="username" placeholder="e.g., vlad@email.com" required>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="{{ category }}">{{ message | safe }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
 
-            <label><strong>Password:</strong></label>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="password" name="password" id="passwordInput" placeholder="Enter password" required>
-                <button type="button" class="generate-btn" onclick="generatePassword()">Generate Password</button>
-            </div>
-            <small style="color: #666; display: block; margin-top: -15px; margin-bottom: 15px;">Click "Generate" for a
-                strong random password.</small>
-            <button type="submit" class="primary-btn">Check & Save to Vault</button>
-        </form>
+            <form method="POST" style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+                <label><strong>Website:</strong></label>
+                <input type="text" name="website" placeholder="e.g., facebook.com" required>
 
-        <hr style="margin: 40px 0;">
+                <label><strong>Email or Username </strong></label>
+                <input type="text" name="username" placeholder="e.g., vlad@email.com" required>
 
-        <h3>My Saved Accounts</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 25%;">Website</th>
-                    <th style="width: 25%;">Username</th>
-                    <th style="width: 35%;">Password</th>
-                    <th style="width: 15%;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for account in saved_accounts %}
-                <tr>
-                    <td>{{ account.website }}</td>
-                    <td>{{ account.username }}</td>
-                    <td>
-                        <div style="display: flex; align-items: center;">
-                            <input type="password" value="{{ account.password }}" id="pass-{{ loop.index }}"
-                                class="vault-pass" readonly>
-                            <button class="toggle-btn" onclick="toggleVisibility('pass-{{ loop.index }}')">👁️</button>
-                        </div>
-                    </td>
+                <label><strong>Password:</strong></label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="password" name="password" id="passwordInput" placeholder="Enter password" required>
+                    <button type="button" class="toggle-btn" onclick="toggleVisibility('passwordInput')"
+                        style="margin-left: -50px; margin-bottom: 12px;">👁️</button>
+                    <button type="button" class="generate-btn" onclick="generatePassword()">Generate Password</button>
+                </div>
+                <small style="color: #666; display: block; margin-top: -15px; margin-bottom: 15px;">Click "Generate" for
+                    a
+                    strong random password.</small>
+                <button type="submit" class="primary-btn">Check & Save to Vault</button>
+            </form>
 
-                    <td>
-                        <form action="{{ url_for('delete_password', id=account['id']) }}" method="POST"
-                            onsubmit="return confirm('Are you sure you want to delete this password permanently?');">
-                            <button type="submit"
-                                style="background-color: #0e0a0a; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                                Delete
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" style="text-align: center; color: #777; padding: 20px;">Your vault is currently
-                        empty.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</body>
+            <hr style="margin: 40px 0;">
+
+            <h3>My Saved Accounts</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Website</th>
+                        <th style="width: 25%;">Username</th>
+                        <th style="width: 35%;">Password</th>
+                        <th style="width: 15%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in saved_accounts %}
+                    <tr>
+                        <td>{{ account.website }}</td>
+                        <td>{{ account.username }}</td>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <input type="password" value="{{ account.password }}" id="pass-{{ loop.index }}"
+                                    class="vault-pass" readonly>
+                                <button class="toggle-btn"
+                                    onclick="toggleVisibility('pass-{{ loop.index }}')">👁️</button>
+                            </div>
+                        </td>
+
+                        <td>
+                            <form action="{{ url_for('delete_password', id=account['id']) }}" method="POST"
+                                onsubmit="return confirm('Are you sure you want to delete this password permanently?');">
+                                <button type="submit"
+                                    style="background-color: #0e0a0a; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                    Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #777; padding: 20px;">Your vault is currently
+                            empty.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </body>
 
 </html>

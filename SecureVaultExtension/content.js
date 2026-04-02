@@ -1,9 +1,9 @@
 console.log("🕵️‍♂️ Secure Vault Extension is scanning...");
 let hasAutofilled = false;
 
-// 🧪 TEMPORARY TEST: Ping the server as soon as the page loads
+// Ping the server as soon as the page loads
 chrome.runtime.sendMessage({ action: "pingServer" }, (response) => {
-    console.log("📡 Server Ping Result:", response);
+    console.log("Server Ping Result:", response);
 });
 
 function showToast(message, isError = true, saveAction = null) {

@@ -8,7 +8,7 @@
         "scripting"
     ],
     "host_permissions": [
-        "https://secure-vault-h0a6.onrender.com/*",
+        "http://127.0.0.1:5000/*",
         "<all_urls>"
     ],
     "background": {
