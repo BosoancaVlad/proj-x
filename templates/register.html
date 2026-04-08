@@ -76,8 +76,8 @@
         {% endwith %}
 
         <form method="POST">
-            <input type="text" name="username" placeholder="Email or Username" required>
-            <input type="password" name="password" placeholder="Password" required>
+            <input type="text" name="username" placeholder="Email or Username" required style="margin-bottom: 10px;">
+            <input type="password" name="password" placeholder="Password" required style="margin-bottom: 15px;">
             <button type="submit" class="primary-btn">Make Account</button>
         </form>
         <p style="margin-top: 20px; font-size: 14px;">Already have an account? <a href="{{ url_for('login') }}">Login

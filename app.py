@@ -12,16 +12,13 @@ import os
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+#import hashlib
+import base64
 
 #tells Python to open the hidden .env file and read it
 load_dotenv()
 
-MASTER_KEY = os.getenv("MASTER_KEY").encode('utf-8')
-
 app = Flask(__name__)
-
-cipher_suite = Fernet(MASTER_KEY)
-
 
 app.secret_key = 'super_secret_key'
 CORS(app) #allows Chrome Extension to talk to local server
@@ -82,29 +79,41 @@ def check_leaked(password):
 
 
 def save_to_vault(website, username, password):
-    user_id = session.get('user_id') #get the logged-in user's ID
-    if not user_id: return
+    user_id = session.get('user_id')
+    user_key = session.get('user_key') # Get user's personal key
+    if not user_id or not user_key: return 
+
+    #create a personal encryptor just for them
+    personal_cipher = Fernet(user_key.encode())
+    encrypted_password = personal_cipher.encrypt(password.encode()).decode()
+
     db = get_db_connection()
     cursor = db.cursor()
-
-    #encrypt the password
-    encrypted_password = cipher_suite.encrypt(password.encode()).decode()
-
     query = "INSERT INTO my_vault (user_id, website, username, password) VALUES (%s, %s, %s, %s)"
     cursor.execute(query, (user_id, website, username, encrypted_password))
-    
     db.commit()
     db.close()
 
 def get_vault_items():
     user_id = session.get('user_id')
-    if not user_id: return []
+    user_key = session.get('user_key')
+    if not user_id or not user_key: return []
+
+    personal_cipher = Fernet(user_key.encode())
 
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM my_vault WHERE user_id = %s", (user_id,))
     items = cursor.fetchall()
     db.close()
+
+    #decrypt everything using user's key
+    for item in items:
+        try:
+            item['password'] = personal_cipher.decrypt(item['password'].encode()).decode()
+        except Exception:
+            item['password'] = "ERROR: Old Key"
+
     return items
 
     
@@ -143,12 +152,19 @@ def register():
             
     return render_template('register.html')
 
+# The Magic Key Generator
+def generate_user_key(master_password):
+    # This turns "Monkey123" into a perfect 32-byte Fernet encryption key!
+    key = hashlib.sha256(master_password.encode()).digest()
+    return base64.urlsafe_b64encode(key)
+
 #login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        remember = request.form.get('remember') # Grab the checkbox!
         
         db = get_db_connection()
         cursor = db.cursor(pymysql.cursors.DictCursor)
@@ -156,10 +172,19 @@ def login():
         user = cursor.fetchone()
         db.close()
         
-        # Check if user exists AND password matches the hash
         if user and check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
             session['username'] = user['username']
+            
+            # ZERO KNOWLEDGE :save the user's personal key in the session!
+            session['user_key'] = generate_user_key(password).decode('utf-8')
+            
+            # remember me logic
+            if remember:
+                session.permanent = True # Cookie lasts for a month
+            else:
+                session.permanent = False # Cookie dies when browser closes
+                
             return redirect(url_for('home'))
         else:
             flash("Invalid username or password.", "danger")
@@ -209,12 +234,6 @@ def home():
             
         return redirect(url_for('home'))
     saved_accounts = get_vault_items()
-
-    for account in saved_accounts:
-        try:
-            account['password'] = cipher_suite.decrypt(account['password'].encode()).decode()
-        except Exception as e:
-            pass # If it's an old, unencrypted password we don't consider it
     
     return render_template('index.html', saved_accounts=saved_accounts)
 
@@ -237,24 +256,18 @@ def delete_password(id):
 def api_get_credentials():
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Unauthorized!"})  
+        
     data = request.json
     website_url = data.get('url') 
     
-    items = get_vault_items()
+    items = get_vault_items() # <--- This function returns ALREADY decrypted passwords now!
+    
     for account in items:
         if website_url in account['website'] or account['website'] in website_url:
-            
-            #Safety Net
-            try:
-                decrypted_password = cipher_suite.decrypt(account['password'].encode()).decode()
-            except Exception:
-                # If it crashes, it means this is an old password from yesterday. Just use it as-is!
-                decrypted_password = account['password'] 
-            
             return jsonify({
                 "found": True,
                 "username": account['username'],
-                "password": decrypted_password
+                "password": account['password'] # Just pass it directly!
             })
             
     return jsonify({"found": False})
@@ -308,10 +321,16 @@ def api_extension_login():
     user = cursor.fetchone()
     db.close()
     
-    # Verify the hash just like the web app does
     if user and check_password_hash(user['password_hash'], password):
         session['user_id'] = user['id']
         session['username'] = user['username']
+        
+        # Give the extension the personal key too!
+        session['user_key'] = generate_user_key(password).decode('utf-8')
+        
+        # Extensions should usually act as "Remember Me" automatically
+        session.permanent = True 
+        
         return jsonify({"status": "success", "message": "Logged in!"})
     else:
         return jsonify({"status": "error", "message": "Invalid credentials"})
