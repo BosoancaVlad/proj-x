@@ -9,14 +9,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkAuthStatus() {
         chrome.runtime.sendMessage({ action: "pingServer" }, (response) => {
             if (response && response.status === "logged_in") {
-                //User is logged in ->Show the green dot and their name.
+                //User is logged in ->Show the green dot and their name
                 loginSection.style.display = "none";
                 statusSection.style.display = "flex";
                 statusDot.className = "dot online";
                 statusText.innerText = "Vault Unlocked: " + response.username;
                 statusText.style.color = "#28a745";
             } else if (response && response.status === "logged_out") {
-                //Server is awake, but user needs to log in -> Show form.
+                //Server is awake, but user needs to log in -> Show form
                 statusSection.style.display = "none";
                 loginSection.style.display = "block";
             } else {
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMsg.style.display = "none";
                 checkAuthStatus();// Updates the popup to the green dot
 
-                //Send the wake-up call to the current webpage!
+                //Send the wake-up call to the current webpage
                 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
                     if (tabs.length > 0) {
                         chrome.tabs.sendMessage(tabs[0].id, { action: "wakeUpScanner" });

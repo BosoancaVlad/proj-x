@@ -113,7 +113,7 @@ setInterval(() => {
                         } else {
                             passBox.style.border = "3px solid #28a745";
 
-                            //pass the save action to the toast!
+                            //pass the save action to the toast
                             showToast(data.reason, false, () => {
                                 chrome.runtime.sendMessage({
                                     action: "saveCredentials",

@@ -2,7 +2,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from zxcvbn import zxcvbn
 import pymysql
-import difflib  #compare strings!
+import difflib  #compare strings
 from flask import jsonify 
 from flask_cors import CORS #to run: pip install flask-cors
 from cryptography.fernet import Fernet
@@ -154,7 +154,7 @@ def register():
 
 # The Magic Key Generator
 def generate_user_key(master_password):
-    # This turns "Monkey123" into a perfect 32-byte Fernet encryption key!
+    # turn user password into a 32-byte Fernet encryption key
     key = hashlib.sha256(master_password.encode()).digest()
     return base64.urlsafe_b64encode(key)
 
@@ -164,8 +164,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        remember = request.form.get('remember') # Grab the checkbox!
-        
+        remember = request.form.get('remember') 
         db = get_db_connection()
         cursor = db.cursor(pymysql.cursors.DictCursor)
         cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
@@ -176,7 +175,7 @@ def login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             
-            # ZERO KNOWLEDGE :save the user's personal key in the session!
+            # ZERO KNOWLEDGE:save the user's personal key in the session!
             session['user_key'] = generate_user_key(password).decode('utf-8')
             
             # remember me logic
@@ -260,14 +259,14 @@ def api_get_credentials():
     data = request.json
     website_url = data.get('url') 
     
-    items = get_vault_items() # <--- This function returns ALREADY decrypted passwords now!
+    items = get_vault_items() #return decrypted passwords
     
     for account in items:
         if website_url in account['website'] or account['website'] in website_url:
             return jsonify({
                 "found": True,
                 "username": account['username'],
-                "password": account['password'] # Just pass it directly!
+                "password": account['password'] 
             })
             
     return jsonify({"found": False})
@@ -325,10 +324,10 @@ def api_extension_login():
         session['user_id'] = user['id']
         session['username'] = user['username']
         
-        # Give the extension the personal key too!
+        #Give the extension the personal key too
         session['user_key'] = generate_user_key(password).decode('utf-8')
         
-        # Extensions should usually act as "Remember Me" automatically
+        #Extensions should usually act as "Remember Me" automatically
         session.permanent = True 
         
         return jsonify({"status": "success", "message": "Logged in!"})
