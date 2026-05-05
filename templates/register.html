@@ -69,7 +69,6 @@
             margin-bottom: 15px;
         }
 
-        /* New styling for the live feedback */
         #live-feedback {
             font-size: 12px;
             font-weight: bold;
@@ -97,7 +96,6 @@
             <input type="text" name="username" placeholder="Email or Username" required>
 
             <input type="password" id="reg-password" name="password" placeholder="Master Password" required>
-            <!-- This is where the live API feedback will show up -->
             <p id="live-feedback"></p>
 
             <input type="password" id="reg-confirm" name="confirm_password" placeholder="Confirm Master Password"
@@ -108,8 +106,8 @@
                 Passwords do not match!
             </p>
 
-            <!-- Button starts DISABLED until the API approves the password -->
             <button type="submit" id="submit-btn" class="primary-btn" disabled>Make Account</button>
+            <!--button starts disabled -->
         </form>
 
         <p style="margin-top: 20px; font-size: 14px;">Already have an account? <a href="{{ url_for('login') }}">Login
@@ -120,9 +118,9 @@
         const passInput = document.getElementById("reg-password");
         const feedbackText = document.getElementById("live-feedback");
         const submitBtn = document.getElementById("submit-btn");
-        let typingTimer; // Used to prevent spamming the server on every keystroke
+        let typingTimer; // prevent spamming the server on every keystroke
 
-        // 1. THE LIVE SCANNER
+        // scanner
         passInput.addEventListener('input', function () {
             clearTimeout(typingTimer);
             const password = passInput.value;
@@ -138,7 +136,7 @@
             feedbackText.style.color = "#6c757d";
             submitBtn.disabled = true; // Lock button while checking
 
-            // Wait 500ms after the user stops typing to ping the server
+            //wait half a second before sending to API
             typingTimer = setTimeout(() => {
                 fetch('/api/register/check', {
                     method: 'POST',
@@ -146,7 +144,7 @@
                     body: JSON.stringify({ password: password })
                 })
                     .then(response => {
-                        // NEW: Check if the server's bouncer kicked us out!
+                        //check if the server's bouncer kicked the user out
                         if (response.status === 429) {
                             throw new Error("RateLimited");
                         }
@@ -155,29 +153,27 @@
                     .then(data => {
                         feedbackText.innerText = data.reason;
                         if (data.status === "refused") {
-                            feedbackText.style.color = "#dc3545"; // Red
+                            feedbackText.style.color = "#dc3545";
                             passInput.style.border = "2px solid #dc3545";
                             submitBtn.disabled = true;
                         } else if (data.status === "approved") {
-                            feedbackText.style.color = "#28a745"; // Green
+                            feedbackText.style.color = "#28a745";
                             passInput.style.border = "2px solid #28a745";
                             submitBtn.disabled = false;
                         }
                     })
                     .catch(err => {
-                        // NEW: Show a friendly message if they type too fast
                         if (err.message === "RateLimited") {
                             feedbackText.innerText = "Slow down! You are checking passwords too fast.";
                         } else {
                             feedbackText.innerText = "Error checking password.";
                         }
                         feedbackText.style.color = "#dc3545";
-                        submitBtn.disabled = true; // Lock the button on error
+                        submitBtn.disabled = true;
                     });
             }, 500);
         });
 
-        // 2. THE CONFIRMATION CHECK (Runs when they click submit)
         function finalizeRegistration() {
             const pass = document.getElementById("reg-password").value;
             const confirm = document.getElementById("reg-confirm").value;
@@ -189,7 +185,7 @@
             }
 
             errorMsg.style.display = "none";
-            submitBtn.disabled = true; // Disable to prevent double-clicks
+            submitBtn.disabled = true; //disable to prevent double-clicks
             submitBtn.innerText = "Creating secure vault...";
             return true;
         }
