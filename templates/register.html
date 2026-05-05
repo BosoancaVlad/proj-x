@@ -23,7 +23,7 @@
         input {
             width: 100%;
             padding: 12px;
-            margin: 8px 0 20px 0;
+            margin: 8px 0;
             border: 1px solid #ccc;
             border-radius: 6px;
             box-sizing: border-box;
@@ -39,10 +39,18 @@
             cursor: pointer;
             font-size: 16px;
             font-weight: bold;
+            margin-top: 15px;
+            transition: opacity 0.3s;
         }
 
         .primary-btn:hover {
             background-color: #004494;
+        }
+
+        .primary-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            opacity: 0.7;
         }
 
         .danger {
@@ -60,6 +68,16 @@
             border-radius: 6px;
             margin-bottom: 15px;
         }
+
+        /* New styling for the live feedback */
+        #live-feedback {
+            font-size: 12px;
+            font-weight: bold;
+            text-align: left;
+            margin-top: 0;
+            margin-bottom: 15px;
+            min-height: 15px;
+        }
     </style>
 </head>
 
@@ -75,14 +93,107 @@
         {% endif %}
         {% endwith %}
 
-        <form method="POST">
-            <input type="text" name="username" placeholder="Email or Username" required style="margin-bottom: 10px;">
-            <input type="password" name="password" placeholder="Password" required style="margin-bottom: 15px;">
-            <button type="submit" class="primary-btn">Make Account</button>
+        <form method="POST" onsubmit="return finalizeRegistration()">
+            <input type="text" name="username" placeholder="Email or Username" required>
+
+            <input type="password" id="reg-password" name="password" placeholder="Master Password" required>
+            <!-- This is where the live API feedback will show up -->
+            <p id="live-feedback"></p>
+
+            <input type="password" id="reg-confirm" name="confirm_password" placeholder="Confirm Master Password"
+                required>
+
+            <p id="password-error"
+                style="color: #dc3545; font-size: 13px; font-weight: bold; display: none; margin-top: 0; margin-bottom: 15px;">
+                Passwords do not match!
+            </p>
+
+            <!-- Button starts DISABLED until the API approves the password -->
+            <button type="submit" id="submit-btn" class="primary-btn" disabled>Make Account</button>
         </form>
+
         <p style="margin-top: 20px; font-size: 14px;">Already have an account? <a href="{{ url_for('login') }}">Login
                 here</a></p>
     </div>
+
+    <script>
+        const passInput = document.getElementById("reg-password");
+        const feedbackText = document.getElementById("live-feedback");
+        const submitBtn = document.getElementById("submit-btn");
+        let typingTimer; // Used to prevent spamming the server on every keystroke
+
+        // 1. THE LIVE SCANNER
+        passInput.addEventListener('input', function () {
+            clearTimeout(typingTimer);
+            const password = passInput.value;
+
+            if (password.length === 0) {
+                feedbackText.innerText = "";
+                submitBtn.disabled = true;
+                passInput.style.border = "1px solid #ccc";
+                return;
+            }
+
+            feedbackText.innerText = "Checking security...";
+            feedbackText.style.color = "#6c757d";
+            submitBtn.disabled = true; // Lock button while checking
+
+            // Wait 500ms after the user stops typing to ping the server
+            typingTimer = setTimeout(() => {
+                fetch('/api/register/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                })
+                    .then(response => {
+                        // NEW: Check if the server's bouncer kicked us out!
+                        if (response.status === 429) {
+                            throw new Error("RateLimited");
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        feedbackText.innerText = data.reason;
+                        if (data.status === "refused") {
+                            feedbackText.style.color = "#dc3545"; // Red
+                            passInput.style.border = "2px solid #dc3545";
+                            submitBtn.disabled = true;
+                        } else if (data.status === "approved") {
+                            feedbackText.style.color = "#28a745"; // Green
+                            passInput.style.border = "2px solid #28a745";
+                            submitBtn.disabled = false;
+                        }
+                    })
+                    .catch(err => {
+                        // NEW: Show a friendly message if they type too fast
+                        if (err.message === "RateLimited") {
+                            feedbackText.innerText = "Slow down! You are checking passwords too fast.";
+                        } else {
+                            feedbackText.innerText = "Error checking password.";
+                        }
+                        feedbackText.style.color = "#dc3545";
+                        submitBtn.disabled = true; // Lock the button on error
+                    });
+            }, 500);
+        });
+
+        // 2. THE CONFIRMATION CHECK (Runs when they click submit)
+        function finalizeRegistration() {
+            const pass = document.getElementById("reg-password").value;
+            const confirm = document.getElementById("reg-confirm").value;
+            const errorMsg = document.getElementById("password-error");
+
+            if (pass !== confirm) {
+                errorMsg.style.display = "block";
+                return false;
+            }
+
+            errorMsg.style.display = "none";
+            submitBtn.disabled = true; // Disable to prevent double-clicks
+            submitBtn.innerText = "Creating secure vault...";
+            return true;
+        }
+    </script>
 </body>
 
 </html>

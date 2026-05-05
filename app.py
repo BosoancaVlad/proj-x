@@ -18,6 +18,9 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 #tells Python to open the hidden .env file and read it
 load_dotenv()
 
@@ -25,6 +28,14 @@ app = Flask(__name__)
 
 app.secret_key = 'super_secret_key'
 CORS(app) #allows Chrome Extension to talk to local server
+
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri="memory://",
+    default_limits=["200 per day", "50 per hour"] # Standard fallback limits
+)
 
 #database connection
 def get_db_connection():
@@ -128,8 +139,14 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        # Hash the master password before saving!
+        confirm_password = request.form.get('confirm_password') 
+
+       
+        if password != confirm_password:
+            flash("Passwords do not match!", "danger")
+            return redirect(url_for('register'))
+            
+        #hash the master password before saving
         hashed_pw = generate_password_hash(password)
         
         db = get_db_connection()
@@ -146,13 +163,35 @@ def register():
             
     return render_template('register.html')
 
-# The NEW Advanced Key Generator (PBKDF2 - 600,000 Iterations)
+@app.route('/api/register/check', methods=['POST'])
+@limiter.limit("10 per minute")  #rate limiting
+def api_register_check():
+    data = request.json
+    new_password = data.get('password')
+    
+    if not new_password:
+        return jsonify({"status": "empty"})
+
+    stats = zxcvbn(new_password)
+    
+ 
+    is_leaked = check_leaked(new_password)
+    
+    if is_leaked:
+        return jsonify({"status": "refused", "reason": "Refused: Found in a known data breach!"})
+    elif stats['score'] < 3:
+        return jsonify({"status": "refused", "reason": f"Too weak (Score: {stats['score']}/4). Takes {stats['guesses']} guesses to crack."})
+    else:
+        return jsonify({"status": "approved", "reason": f"Strong Password! (Score: {stats['score']}/4)"})
+    
+
+#key generator (PBKDF2 - 600,000 Iterations)
 def generate_user_key(master_password, salt_string):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=salt_string.encode('utf-8'), # Using username as the salt
-        iterations=600000,                # The 0.5 second delay!
+        salt=salt_string.encode('utf-8'), #using username as the salt
+        iterations=600000,                #the 0.5 second delay!
         backend=default_backend()
     )
     return base64.urlsafe_b64encode(kdf.derive(master_password.encode('utf-8')))
