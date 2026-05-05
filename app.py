@@ -14,6 +14,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 #import hashlib
 import base64
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 
 #tells Python to open the hidden .env file and read it
 load_dotenv()
@@ -99,20 +102,11 @@ def get_vault_items():
     user_key = session.get('user_key')
     if not user_id or not user_key: return []
 
-    personal_cipher = Fernet(user_key.encode())
-
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM my_vault WHERE user_id = %s", (user_id,))
     items = cursor.fetchall()
     db.close()
-
-    #decrypt everything using user's key
-    for item in items:
-        try:
-            item['password'] = personal_cipher.decrypt(item['password'].encode()).decode()
-        except Exception:
-            item['password'] = "ERROR: Old Key"
 
     return items
 
@@ -152,11 +146,16 @@ def register():
             
     return render_template('register.html')
 
-# The Magic Key Generator
-def generate_user_key(master_password):
-    # turn user password into a 32-byte Fernet encryption key
-    key = hashlib.sha256(master_password.encode()).digest()
-    return base64.urlsafe_b64encode(key)
+# The NEW Advanced Key Generator (PBKDF2 - 600,000 Iterations)
+def generate_user_key(master_password, salt_string):
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt_string.encode('utf-8'), # Using username as the salt
+        iterations=600000,                # The 0.5 second delay!
+        backend=default_backend()
+    )
+    return base64.urlsafe_b64encode(kdf.derive(master_password.encode('utf-8')))
 
 #login page
 @app.route('/login', methods=['GET', 'POST'])
@@ -176,7 +175,7 @@ def login():
             session['username'] = user['username']
             
             # ZERO KNOWLEDGE:save the user's personal key in the session!
-            session['user_key'] = generate_user_key(password).decode('utf-8')
+            session['user_key'] = generate_user_key(password,username).decode('utf-8')  
             
             # remember me logic
             if remember:
@@ -258,16 +257,31 @@ def api_get_credentials():
         
     data = request.json
     website_url = data.get('url') 
+    master_password = data.get('master_password') # Grab the password from the extension
     
-    items = get_vault_items() #return decrypted passwords
+    items = get_vault_items() # Returns encrypted items
+    username = session.get('username')
     
     for account in items:
         if website_url in account['website'] or account['website'] in website_url:
-            return jsonify({
+            #assume we will send a blank password for safety
+            response_data = {
                 "found": True,
                 "username": account['username'],
-                "password": account['password'] 
-            })
+                "password": "" 
+            }
+            
+            # IF the extension provided the Master Password, unlock it
+            if master_password:
+                try:
+                    derived_key = generate_user_key(master_password, username)
+                    personal_cipher = Fernet(derived_key)
+                    # Swap the blank string for the real, decrypted password
+                    response_data['password'] = personal_cipher.decrypt(account['password'].encode()).decode()
+                except Exception:
+                    pass # If the password was wrong, just leave it blank
+                    
+            return jsonify(response_data)
             
     return jsonify({"found": False})
 
@@ -325,7 +339,7 @@ def api_extension_login():
         session['username'] = user['username']
         
         #Give the extension the personal key too
-        session['user_key'] = generate_user_key(password).decode('utf-8')
+        session['user_key'] = generate_user_key(password,username).decode('utf-8')
         
         #Extensions should usually act as "Remember Me" automatically
         session.permanent = True 
@@ -342,6 +356,44 @@ def api_info():
         return jsonify({"status": "logged_in", "username": session['username']})
     else:
         return jsonify({"status": "logged_out"})
+
+#Stateless decryption endpoint!!
+@app.route('/api/decrypt', methods=['POST'])
+def api_decrypt():
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    item_id = data.get('item_id')
+    master_password = data.get('master_password')
+    
+    user_id = session.get('user_id')
+    username = session.get('username')
+
+    #Fetch ONLY the specific encrypted password from DB
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    cursor.execute("SELECT password FROM my_vault WHERE id = %s AND user_id = %s", (item_id, user_id))
+    item = cursor.fetchone()
+    db.close()
+
+    if not item:
+        return jsonify({"success": False, "error": "Item not found"}), 404
+
+    try:
+        #Re-derive the key from the password the user just typed!
+        derived_key = generate_user_key(master_password, username)
+        personal_cipher = Fernet(derived_key)
+        
+        #Decrypt the password
+        decrypted_password = personal_cipher.decrypt(item['password'].encode()).decode()
+        
+        #Send it back (Flask immediately forgets the key and password)
+        return jsonify({"success": True, "decrypted_password": decrypted_password})
+        
+    except Exception as e:
+        #If it fails, they typed the wrong master password
+        return jsonify({"success": False, "error": "Invalid Master Password"}), 403
 
 if __name__ == '__main__':
     app.run(debug=True)

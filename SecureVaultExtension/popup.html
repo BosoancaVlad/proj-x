@@ -99,8 +99,17 @@
         <div id="error-msg">Invalid credentials.</div>
     </div>
 
+    <div id="unlock-section" style="display: none;">
+        <p style="font-size: 13px; color: #666; margin-top: 0;">Session locked. Enter Master Password to enable
+            Autofill.</p>
+        <input type="password" id="unlock-password" placeholder="Master Password">
+        <button id="unlock-btn" style="background-color: #0056b3;">Unlock Vault</button>
+        <div id="unlock-error" style="color: #dc3545; font-size: 12px; display: none; margin-top: 10px;">Incorrect
+            Password.</div>
+    </div>
+
     <div id="status-section" class="status-container" style="display: none;">
-        <span id="status-dot" class="dot"></span>
+        <span id="status-dot" class="dot offline"></span>
         <span id="status-text">Checking server...</span>
     </div>
 

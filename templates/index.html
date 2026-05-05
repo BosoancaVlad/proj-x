@@ -210,12 +210,14 @@
                     <tr>
                         <td>{{ account.website }}</td>
                         <td>{{ account.username }}</td>
+
                         <td>
                             <div style="display: flex; align-items: center;">
-                                <input type="password" value="{{ account.password }}" id="pass-{{ loop.index }}"
-                                    class="vault-pass" readonly>
-                                <button class="toggle-btn"
-                                    onclick="toggleVisibility('pass-{{ loop.index }}')">👁️</button>
+                                <span id="pass-{{ account['id'] }}"
+                                    style="font-family: monospace; width: 150px; display: inline-block;">********</span>
+
+                                <button type="button" class="toggle-btn" data-id="{{ account['id'] }}"
+                                    onclick="requestDecryption(this.dataset.id)">👁️</button>
                             </div>
                         </td>
 
@@ -238,6 +240,91 @@
                 </tbody>
             </table>
         </div>
+        <div id="modal-overlay"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999;">
+        </div>
+        <div id="decryption-modal"
+            style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 300px;">
+            <h3 style="margin-top: 0; color: #333;">Unlock Password</h3>
+            <p style="font-size: 13px; color: #666;">Enter your Master Password to decrypt.</p>
+
+            <input type="password" id="master-password-input" placeholder="Master Password"
+                style="margin-bottom: 15px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+
+            <div
+                style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; font-size: 13px;">
+                <input type="checkbox" id="remember-session" style="width: auto; margin: 0 8px 0 0; cursor: pointer;">
+                <label for="remember-session" style="margin: 0; cursor: pointer;">Remember key for this session</label>
+            </div>
+
+            <input type="hidden" id="target-item-id">
+
+            <div style="display: flex; justify-content: space-between;">
+                <button onclick="submitDecryption()"
+                    style="background: #28a745; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Decrypt</button>
+                <button onclick="closeModal()"
+                    style="background: #dc3545; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+            </div>
+        </div>
+
+        <script>
+            function requestDecryption(itemId) {
+                let savedMasterPassword = sessionStorage.getItem("tempMasterKey");
+
+                // Check if it's already showing the password, if so, hide it
+                let displaySpan = document.getElementById('pass-' + itemId);
+                if (displaySpan.innerText !== '********') {
+                    displaySpan.innerText = '********';
+                    return;
+                }
+
+                if (savedMasterPassword) {
+                    fetchDecryptedPassword(itemId, savedMasterPassword);
+                } else {
+                    document.getElementById("target-item-id").value = itemId;
+                    document.getElementById("decryption-modal").style.display = "block";
+                    document.getElementById("modal-overlay").style.display = "block";
+                    document.getElementById("master-password-input").focus();
+                }
+            }
+
+            function closeModal() {
+                document.getElementById("decryption-modal").style.display = "none";
+                document.getElementById("modal-overlay").style.display = "none";
+                document.getElementById("master-password-input").value = "";
+            }
+
+            function submitDecryption() {
+                let password = document.getElementById("master-password-input").value;
+                let rememberMe = document.getElementById("remember-session").checked;
+                let itemId = document.getElementById("target-item-id").value;
+
+                if (rememberMe) {
+                    sessionStorage.setItem("tempMasterKey", password);
+                }
+
+                fetchDecryptedPassword(itemId, password);
+                closeModal();
+            }
+
+            function fetchDecryptedPassword(itemId, masterPassword) {
+                fetch('/api/decrypt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId, master_password: masterPassword })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('pass-' + itemId).innerText = data.decrypted_password;
+                        } else {
+                            alert("Error: " + data.error);
+                            sessionStorage.removeItem("tempMasterKey");
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+        </script>
     </body>
 
 </html>
