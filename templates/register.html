@@ -96,8 +96,7 @@
             <input type="text" name="username" placeholder="Email or Username" required>
 
             <input type="password" id="reg-password" name="password" placeholder="Master Password" required>
-            <p id="live-feedback"></p>
-
+            <p id="live-feedback" style="color: #6c757d;">Waiting for password to analyze...</p>
             <input type="password" id="reg-confirm" name="confirm_password" placeholder="Confirm Master Password"
                 required>
 
@@ -126,7 +125,10 @@
             const password = passInput.value;
 
             if (password.length === 0) {
-                feedbackText.innerText = "";
+                //the default placeholder text and color
+                feedbackText.innerText = "Waiting for password to analyze...";
+                feedbackText.style.color = "#6c757d";
+
                 submitBtn.disabled = true;
                 passInput.style.border = "1px solid #ccc";
                 return;
