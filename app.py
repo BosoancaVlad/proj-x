@@ -232,8 +232,67 @@ def home():
             
         return redirect(url_for('home'))
     saved_accounts = get_vault_items()
-    
+
     return render_template('index.html', saved_accounts=saved_accounts)
+
+#change of master key
+@app.route('/rotate_key', methods=['POST'])
+@login_required
+def rotate_key():
+    data = request.get_json()
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    
+    user_id = session.get('user_id')
+    username = session.get('username')
+    
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    
+    try:
+        #verify old password
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user or not check_password_hash(user['password_hash'], current_password):
+            return jsonify({"success": False, "error": "Incorrect current Master Password."}), 403
+            
+        #generate old and new keys
+        old_key = generate_user_key(current_password, username)
+        new_key = generate_user_key(new_password, username)
+        
+        old_cipher = Fernet(old_key)
+        new_cipher = Fernet(new_key)
+        
+        #fetch all of the user's locked vault items
+        cursor.execute("SELECT id, password FROM my_vault WHERE user_id = %s", (user_id,))
+        items = cursor.fetchall()
+        
+        #loop through and re-encrypt every password
+        for item in items:
+            #unlock with old key
+            plain_text = old_cipher.decrypt(item['password'].encode()).decode()
+            #lock with new key
+            new_encrypted = new_cipher.encrypt(plain_text.encode()).decode()
+            #overwrite in database
+            cursor.execute("UPDATE my_vault SET password = %s WHERE id = %s", (new_encrypted, item['id']))
+        
+        #update the user's login hash in MariaDB
+        new_hash = generate_password_hash(new_password)
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
+        
+        db.commit()
+        
+        #update the active session key so the app doesn't break
+        session['user_key'] = new_key.decode('utf-8')
+        
+        return jsonify({"success": True, "message": "Master Password updated and vault completely re-encrypted!"})
+        
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "error": f"Encryption error: {str(e)}"}), 500
+    finally:
+        db.close()
 
 #delete a password
 @app.route('/delete/<int:id>', methods=['POST'])

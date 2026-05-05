@@ -160,6 +160,11 @@
                 onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                 Log Out
             </a>
+            <a href="#" onclick="openSettingsModal()"
+                style="position: absolute; top: 20px; right: 110px; background-color: #17a2b8; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                Settings
+            </a>
 
             <h2 style="text-align: center; color: #333;">My Secure Password Vault</h2>
             <p style="text-align: center; color: #666; margin-bottom: 30px;">Welcome back, <strong>{{
@@ -267,6 +272,31 @@
             </div>
         </div>
 
+        <div id="settings-modal"
+            style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 320px;">
+            <h3 style="margin-top: 0; color: #333;">Change Master Password</h3>
+            <p style="font-size: 13px; color: #666;">This will securely re-encrypt your entire vault. Do not close the
+                page.</p>
+
+            <input type="password" id="current-master-pw" placeholder="Current Master Password"
+                style="margin-bottom: 10px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            <input type="password" id="new-master-pw" placeholder="New Master Password"
+                style="margin-bottom: 10px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            <input type="password" id="confirm-master-pw" placeholder="Confirm New Password"
+                style="margin-bottom: 15px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+
+            <p id="settings-status"
+                style="font-size: 12px; color: #dc3545; display: none; margin-top: -5px; margin-bottom: 10px;"></p>
+
+            <div style="display: flex; justify-content: space-between;">
+                <button onclick="submitKeyRotation()" id="rotate-btn"
+                    style="background: #0056b3; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Re-Encrypt
+                    Vault</button>
+                <button onclick="closeSettingsModal()"
+                    style="background: #6c757d; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+            </div>
+        </div>
+
         <script>
             function requestDecryption(itemId) {
                 let savedMasterPassword = sessionStorage.getItem("tempMasterKey");
@@ -323,6 +353,79 @@
                         }
                     })
                     .catch(error => console.error('Error:', error));
+            }
+
+            function openSettingsModal() {
+                document.getElementById("settings-modal").style.display = "block";
+                document.getElementById("modal-overlay").style.display = "block";
+            }
+
+            function closeSettingsModal() {
+                document.getElementById("settings-modal").style.display = "none";
+                document.getElementById("modal-overlay").style.display = "none";
+                document.getElementById("current-master-pw").value = "";
+                document.getElementById("new-master-pw").value = "";
+                document.getElementById("confirm-master-pw").value = "";
+                document.getElementById("settings-status").style.display = "none";
+            }
+
+            function submitKeyRotation() {
+                const currentPw = document.getElementById("current-master-pw").value;
+                const newPw = document.getElementById("new-master-pw").value;
+                const confirmPw = document.getElementById("confirm-master-pw").value;
+                const statusText = document.getElementById("settings-status");
+                const btn = document.getElementById("rotate-btn");
+
+                if (!currentPw || !newPw || !confirmPw) {
+                    statusText.innerText = "Please fill in all fields.";
+                    statusText.style.display = "block";
+                    return;
+                }
+
+                if (newPw !== confirmPw) {
+                    statusText.innerText = "New passwords do not match!";
+                    statusText.style.display = "block";
+                    return;
+                }
+
+                statusText.style.color = "#17a2b8";
+                statusText.innerText = "Re-encrypting vault... Please wait.";
+                statusText.style.display = "block";
+
+                //disable button to prevent double-clicks
+                btn.disabled = true;
+                btn.style.opacity = "0.5";
+
+                fetch('/rotate_key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: currentPw,
+                        new_password: newPw
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.style.opacity = "1";
+                        if (data.success) {
+                            alert("Success! " + data.message);
+
+                            //remove old master key from memory
+                            sessionStorage.removeItem("tempMasterKey");
+
+                            closeSettingsModal();
+                        } else {
+                            statusText.style.color = "#dc3545";
+                            statusText.innerText = "Error: " + data.error;
+                        }
+                    })
+                    .catch(error => {
+                        btn.disabled = false;
+                        btn.style.opacity = "1";
+                        statusText.style.color = "#dc3545";
+                        statusText.innerText = "Network error occurred.";
+                    });
             }
         </script>
     </body>
