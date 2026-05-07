@@ -155,18 +155,27 @@
 
     <body>
         <div class="container">
-            <a href="{{ url_for('logout') }}"
-                style="position: absolute; top: 20px; right: 25px; background-color: #0e0a0a; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
-                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                Log Out
-            </a>
-            <a href="#" onclick="openSettingsModal()"
-                style="position: absolute; top: 20px; right: 110px; background-color: #17a2b8; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
-                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                Settings
-            </a>
 
-            <h2 style="text-align: center; color: #333;">My Secure Password Vault</h2>
+            <!-- LEFT SIDE: History and Settings -->
+            <div style="position: absolute; top: 20px; left: 25px; display: flex; gap: 10px;">
+                <a href="{{ url_for('history') }}"
+                    style="background-color: #6c757d; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">History</a>
+
+                <!-- Notice the href is "#" and it calls your JavaScript function -->
+                <a href="#" onclick="openSettingsModal()"
+                    style="background-color: #17a2b8; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Settings</a>
+            </div>
+
+            <!-- RIGHT SIDE: Log Out -->
+            <div style="position: absolute; top: 20px; right: 25px;">
+                <a href="{{ url_for('logout') }}"
+                    style="background-color: #0e0a0a; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Log Out</a>
+            </div>
+
+            <h2 style="text-align: center; color: #333; margin-top: 10px;">My Secure Password Vault</h2>
             <p style="text-align: center; color: #666; margin-bottom: 30px;">Welcome back, <strong>{{
                     session['username'] }}</strong>! Securely store your credentials with breach detection.</p>
 

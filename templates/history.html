@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>My Vault - Activity History</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Top Navigation Links */
+        .nav-links {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+        }
+
+        .nav-btn {
+            background-color: #0e0a0a;
+            color: white;
+            padding: 6px 12px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: opacity 0.2s;
+            margin-left: 10px;
+        }
+
+        .nav-btn:hover {
+            opacity: 0.8;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            color: #333;
+            font-weight: bold;
+        }
+
+        /* Formatting the "Action" column based on what happened */
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .badge-extension {
+            background-color: #17a2b8;
+        }
+
+        /* Teal for extension */
+        .badge-dashboard {
+            background-color: #6c757d;
+        }
+
+        /* Gray for dashboard */
+
+        /* Formatting the Timestamp */
+        .time-text {
+            color: #555;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}" class="nav-btn">← Back to Vault</a>
+            <a href="{{ url_for('logout') }}" class="nav-btn">Log Out</a>
+        </div>
+
+        <h2 style="text-align: center; color: #333; margin-bottom: 5px;">Activity History</h2>
+        <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 14px;">Review when and where your
+            credentials were used.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Date & Time</th>
+                    <th style="width: 30%;">Website</th>
+                    <th style="width: 25%;">Account</th>
+                    <th style="width: 20%;">Action Taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="time-text">{{ log.timestamp }}</td>
+                    <td><strong>{{ log.website }}</strong></td>
+                    <td>{{ log.username }}</td>
+                    <td>
+                        {% if log.action_type == 'Extension Autofill' %}
+                        <span class="badge badge-extension">Autofill</span>
+                        {% else %}
+                        <span class="badge badge-dashboard">Viewed</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #777; padding: 30px;">No activity logged yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

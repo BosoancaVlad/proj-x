@@ -46,6 +46,14 @@ def get_db_connection():
         database="password_db"
     )
 
+def log_audit_event(user_id, website, username, action_type):
+    db = get_db_connection()
+    cursor = db.cursor()
+    query = "INSERT INTO audit_logs (user_id, website, username, action_type) VALUES (%s, %s, %s, %s)"
+    cursor.execute(query, (user_id, website, username, action_type))
+    db.commit()
+    db.close()
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -369,15 +377,17 @@ def api_get_credentials():
                 "password": "" 
             }
             
-            # IF the extension provided the Master Password, unlock it
+            #if the extension provided the Master Password, unlock it
             if master_password:
                 try:
                     derived_key = generate_user_key(master_password, username)
                     personal_cipher = Fernet(derived_key)
-                    # Swap the blank string for the real, decrypted password
+                    #swap the blank string for the real, decrypted password
                     response_data['password'] = personal_cipher.decrypt(account['password'].encode()).decode()
+
+                    log_audit_event(session['user_id'], account['website'], account['username'], "Extension Autofill")
                 except Exception:
-                    pass # If the password was wrong, just leave it blank
+                    pass #if the password was wrong, leave it blank
                     
             return jsonify(response_data)
             
@@ -455,7 +465,7 @@ def api_info():
     else:
         return jsonify({"status": "logged_out"})
 
-#Stateless decryption endpoint!!
+#Stateless decryption endpoint
 @app.route('/api/decrypt', methods=['POST'])
 def api_decrypt():
     if 'user_id' not in session:
@@ -468,10 +478,9 @@ def api_decrypt():
     user_id = session.get('user_id')
     username = session.get('username')
 
-    #Fetch ONLY the specific encrypted password from DB
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
-    cursor.execute("SELECT password FROM my_vault WHERE id = %s AND user_id = %s", (item_id, user_id))
+    cursor.execute("SELECT website, username, password FROM my_vault WHERE id = %s AND user_id = %s", (item_id, user_id))
     item = cursor.fetchone()
     db.close()
 
@@ -479,19 +488,40 @@ def api_decrypt():
         return jsonify({"success": False, "error": "Item not found"}), 404
 
     try:
-        #Re-derive the key from the password the user just typed!
+        #make the key from the password the user just typed
         derived_key = generate_user_key(master_password, username)
         personal_cipher = Fernet(derived_key)
         
-        #Decrypt the password
+        #decrypt the password
         decrypted_password = personal_cipher.decrypt(item['password'].encode()).decode()
         
-        #Send it back (Flask immediately forgets the key and password)
+        log_audit_event(user_id, item['website'], item['username'], "Viewed on Dashboard")
+        
+        #send it back
         return jsonify({"success": True, "decrypted_password": decrypted_password})
         
     except Exception as e:
-        #If it fails, they typed the wrong master password
+        print(f"Decryption Crash: {e}")
         return jsonify({"success": False, "error": "Invalid Master Password"}), 403
+
+
+
+@app.route('/history')
+@login_required
+def history():
+    user_id = session.get('user_id')
+    
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    
+    # Fetch logs, ordered by newest first (DESC)
+    cursor.execute("SELECT website, username, action_type, timestamp FROM audit_logs WHERE user_id = %s ORDER BY timestamp DESC", (user_id,))
+    logs = cursor.fetchall()
+    db.close()
+    
+    return render_template('history.html', logs=logs)
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
