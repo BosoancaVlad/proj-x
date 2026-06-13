@@ -131,12 +131,23 @@ def get_vault_items():
 
     
 def get_similar_password(new_password):
+    user_key = session.get('user_key')
+    if not user_key:
+        return None
+
     items = get_vault_items()
+    personal_cipher = Fernet(user_key.encode())
+
     for account in items:
-        saved_pass = account['password']
+        try:
+            # Decrypt the stored password before comparing
+            decrypted_pass = personal_cipher.decrypt(account['password'].encode()).decode()
+        except Exception:
+            continue  # skip items that can't be decrypted
+
         #similarity ratio: 0.0 (completely different) to 1.0 (identical)
-        similarity = difflib.SequenceMatcher(None, new_password, saved_pass).ratio()
-        
+        similarity = difflib.SequenceMatcher(None, new_password, decrypted_pass).ratio()
+
         if similarity >= 0.8:
             return account['website']
     return None  #Returns None if no similar passwords are found

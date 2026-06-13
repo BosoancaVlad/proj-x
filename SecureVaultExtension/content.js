@@ -77,7 +77,7 @@ setInterval(() => {
                 if (!data || data.error) return;
 
                 if (data.found === true) {
-                    // 1. ALWAYS autofill the username/email if we found the box
+                    //ALWAYS autofill the username/email if we found the box
                     if (usernameInputs.length > 0) {
                         let userBox = usernameInputs[usernameInputs.length - 1];
                         userBox.value = data.username;
@@ -85,15 +85,15 @@ setInterval(() => {
                         userBox.dispatchEvent(new Event('input', { bubbles: true }));
                     }
 
-                    // 2. ONLY autofill the password if the server sent a real one (not blank)
+                    //ONLY autofill the password if the server sent a real one (not blank)
                     if (data.password !== "") {
                         passBox.value = data.password;
                         passBox.style.border = "3px solid #28a745";
                         passBox.dispatchEvent(new Event('input', { bubbles: true }));
                         showToast(`Autofilled full credentials for ${currentUrl}`, false);
                     } else {
-                        // 3. If password is blank, leave it empty but let the user know!
-                        passBox.style.border = "3px solid #ffc107"; // Keep it yellow to show it needs attention
+                        //If password is blank, leave it empty but let the user know!
+                        passBox.style.border = "3px solid #ffc107";
                         showToast(`Autofilled email. Provide Master Password to autofill password.`, false);
                     }
 
