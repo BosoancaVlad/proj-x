@@ -81,7 +81,21 @@
             background-color: #6c757d;
         }
 
-        /* Gray for dashboard */
+        .badge-danger {
+            background-color: #dc3545;
+            /* Red for deleted */
+        }
+
+        .badge-success {
+            background-color: #28a745;
+            /* Green for Created */
+        }
+
+        .badge-warning {
+            background-color: #6f42c1;
+            /* Purple for Master Key Rotated */
+        }
+
 
         /* Formatting the Timestamp */
         .time-text {
@@ -121,6 +135,12 @@
                     <td>
                         {% if log.action_type == 'Extension Autofill' %}
                         <span class="badge badge-extension">Autofill</span>
+                        {% elif log.action_type == 'Deleted' %}
+                        <span class="badge badge-danger">Deleted</span>
+                        {% elif log.action_type == 'Created' %}
+                        <span class="badge badge-success">Created</span>
+                        {% elif log.action_type == 'Master Key Changed' %}
+                        <span class="badge badge-warning">Password Changed</span>
                         {% else %}
                         <span class="badge badge-dashboard">Viewed</span>
                         {% endif %}

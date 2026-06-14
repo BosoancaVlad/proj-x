@@ -116,6 +116,9 @@ def save_to_vault(website, username, password):
     db.commit()
     db.close()
 
+    #audit log for creation
+    log_audit_event(user_id, website, username, "Created")
+
 def get_vault_items():
     user_id = session.get('user_id')
     user_key = session.get('user_key')
@@ -343,6 +346,9 @@ def rotate_key():
         
         #update the active session key so the app doesn't break
         session['user_key'] = new_key.decode('utf-8')
+
+        #audit log for master key rotation
+        log_audit_event(user_id, "Secure Vault System", username, "Master Key Changed")
         
         return jsonify({"success": True, "message": "Master Password updated and vault completely re-encrypted!"})
         
@@ -352,20 +358,25 @@ def rotate_key():
     finally:
         db.close()
 
-#delete a password
 @app.route('/delete/<int:id>', methods=['POST'])
 def delete_password(id):
     db = get_db_connection()
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     
+    # NEW: Fetch the item details BEFORE deleting it so we can log it
+    cursor.execute("SELECT website, username FROM my_vault WHERE id = %s", (id,))
+    item = cursor.fetchone()
+    
+    if item:
+        log_audit_event(session.get('user_id'), item['website'], item['username'], "Deleted")
+    
+    # Now delete it
     cursor.execute("DELETE FROM my_vault WHERE id = %s", (id,))
-    
     db.commit()
     db.close()
     
-    flash(" Password deleted successfully!", "success")
+    flash("Password deleted successfully!", "success")
     return redirect(url_for('home'))
-
 #check if we have a password for the current website
 @app.route('/api/get_credentials', methods=['POST'])
 def api_get_credentials():
