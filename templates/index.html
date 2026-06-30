@@ -157,6 +157,10 @@
         <div class="container">
 
             <div style="position: absolute; top: 20px; left: 25px; display: flex; gap: 10px;">
+                <a href="{{ url_for('view_inbox') }}"
+                    style="background-color: #6f42c1; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Inbox</a>
+
                 <a href="{{ url_for('history') }}"
                     style="background-color: #6c757d; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
                     onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">History</a>
@@ -172,7 +176,7 @@
                     onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Log Out</a>
             </div>
 
-            <h2 style="text-align: center; color: #333; margin-top: 10px;">My Secure Password Vault</h2>
+            <h2 style="text-align: center; color: #333; margin-top: 25px;">My Secure Password Vault</h2>
             <p style="text-align: center; color: #666; margin-bottom: 30px;">Welcome back, <strong>{{
                     session['username'] }}</strong>! Securely store your credentials with breach detection.</p>
 
@@ -212,8 +216,8 @@
                     <tr>
                         <th style="width: 25%;">Website</th>
                         <th style="width: 25%;">Username</th>
-                        <th style="width: 35%;">Password</th>
-                        <th style="width: 15%;">Actions</th>
+                        <th style="width: 30%;">Password</th>
+                        <th style="width: 20%; text-align: left; padding-left: 27px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -222,24 +226,22 @@
                         <td>{{ account.website }}</td>
                         <td>{{ account.username }}</td>
 
-                        <td>
-                            <div style="display: flex; align-items: center;">
-                                <span id="pass-{{ account['id'] }}"
-                                    style="font-family: monospace; width: 150px; display: inline-block;">********</span>
-
-                                <button type="button" class="toggle-btn" data-id="{{ account['id'] }}"
-                                    onclick="requestDecryption(this.dataset.id)">👁️</button>
-                            </div>
+                        <td style="vertical-align: middle;">
+                            <span id="pass-{{ account['id'] }}" style="font-family: monospace;">********</span>
                         </td>
 
-                        <td>
-                            <form action="{{ url_for('delete_password', id=account['id']) }}" method="POST"
-                                onsubmit="return confirm('Are you sure you want to delete this password permanently?');">
-                                <button type="submit"
-                                    style="background-color: #0e0a0a; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                                    Delete
-                                </button>
-                            </form>
+                        <td style="vertical-align: middle;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <button type="button" class="toggle-btn" data-id="{{ account['id'] }}"
+                                    onclick="requestDecryption(this.dataset.id)">👁️</button>
+                                <form action="{{ url_for('delete_password', id=account['id']) }}" method="POST"
+                                    onsubmit="return confirm('Are you sure you want to delete this password permanently?');">
+                                    <button type="submit"
+                                        style="background-color: #0e0a0a; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
@@ -281,8 +283,7 @@
         <div id="settings-modal"
             style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 320px;">
             <h3 style="margin-top: 0; color: #333;">Change Master Password</h3>
-            <p style="font-size: 13px; color: #666;">This will securely re-encrypt your entire vault. Do not close the
-                page.</p>
+            <p style="font-size: 13px; color: #666;">This will securely re-encrypt your entire vault.</p>
 
             <input type="password" id="current-master-pw" placeholder="Current Master Password"
                 style="margin-bottom: 10px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
@@ -432,6 +433,50 @@
                         statusText.style.color = "#dc3545";
                         statusText.innerText = "Network error occurred.";
                     });
+            }
+        </script>
+        <button onclick="toggleCompose()"
+            style="position: fixed; bottom: 30px; left: calc(100vw - 255px); transform: translateX(-50%); background-color: #6f42c1; color: white; border: none; padding: 15px 20px; border-radius: 30px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 999;">
+            Compose Secure Message
+        </button>
+
+        <div id="compose-window"
+            style="display: none; position: fixed; bottom: 0; right: 80px; width: 350px; background: white; border-radius: 8px 8px 0 0; box-shadow: 0 -2px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
+
+            <div style="background-color: #343a40; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                onclick="toggleCompose()">
+                <span style="font-weight: bold; font-size: 14px;">New Secure Message</span>
+                <span>✖</span>
+            </div>
+
+            <form action="{{ url_for('share_password') }}" method="POST" style="padding: 15px;">
+                <label style="font-size: 12px; color: #666; font-weight: bold;">To:</label>
+                <input type="text" name="receiver_username" placeholder="(Username)" required
+                    style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px; margin-bottom: 15px; outline: none; box-sizing: border-box; font-size: 14px;">
+
+                <label style="font-size: 12px; color: #666; font-weight: bold;">Attach a Vault Password
+                    (Optional):</label>
+                <select name="vault_item_id"
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px; margin-bottom: 15px;">
+                    <option value="">-- No Password, just a note --</option>
+                    {% for account in saved_accounts %}
+                    <option value="{{ account.id }}">{{ account.website }} ({{ account.username }})</option>
+                    {% endfor %}
+                </select>
+
+                <textarea name="note" placeholder="Write a secure note (optional)..." maxlength="180"
+                    style="width: 100%; height: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: none; margin-bottom: 15px; box-sizing: border-box;"></textarea>
+
+                <button type="submit"
+                    style="background-color: #0056b3; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer;">Send
+                </button>
+            </form>
+        </div>
+
+        <script>
+            function toggleCompose() {
+                const win = document.getElementById("compose-window");
+                win.style.display = (win.style.display === "none") ? "block" : "none";
             }
         </script>
     </body>

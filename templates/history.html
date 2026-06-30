@@ -73,7 +73,8 @@
         }
 
         .badge-extension {
-            background-color: #17a2b8;
+            background-color: #fd7e14;
+            /* Orange for Autofill */
         }
 
         /* Teal for extension */
@@ -92,8 +93,13 @@
         }
 
         .badge-warning {
+            background-color: #17a2b8;
+            /* Teal for Master Key Changed */
+        }
+
+        .badge-message {
             background-color: #6f42c1;
-            /* Purple for Master Key Rotated */
+            /* Purple for Message Sent */
         }
 
 
@@ -114,8 +120,7 @@
         </div>
 
         <h2 style="text-align: center; color: #333; margin-bottom: 5px;">Activity History</h2>
-        <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 14px;">Review when and where your
-            credentials were used.</p>
+        <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 14px;">Review your activity.</p>
 
         <table>
             <thead>
@@ -141,6 +146,8 @@
                         <span class="badge badge-success">Created</span>
                         {% elif log.action_type == 'Master Key Changed' %}
                         <span class="badge badge-warning">Password Changed</span>
+                        {% elif log.action_type == 'Message Sent' %}
+                        <span class="badge badge-message">Message Sent</span>
                         {% else %}
                         <span class="badge badge-dashboard">Viewed</span>
                         {% endif %}

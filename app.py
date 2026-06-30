@@ -17,6 +17,8 @@ import base64
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -163,18 +165,46 @@ def register():
         password = request.form['password']
         confirm_password = request.form.get('confirm_password') 
 
-       
         if password != confirm_password:
             flash("Passwords do not match!", "danger")
             return redirect(url_for('register'))
             
-        #hash the master password before saving
         hashed_pw = generate_password_hash(password)
+        
+        #generate RSA key pair for the new user
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        public_key = private_key.public_key()
+
+        #serialize the public key (safe to store as plain text)
+        pub_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode('utf-8')
+
+        #serialize the private key
+        priv_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        #encrypt the private key with their master password (stateless security)
+        temp_user_key = generate_user_key(password, username)
+        cipher = Fernet(temp_user_key)
+        encrypted_priv_key = cipher.encrypt(priv_pem).decode('utf-8')
         
         db = get_db_connection()
         cursor = db.cursor()
         try:
-            cursor.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, hashed_pw))
+            #save the user, their public key, and their encrypted private key
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, public_key, encrypted_private_key) VALUES (%s, %s, %s, %s)", 
+                (username, hashed_pw, pub_pem, encrypted_priv_key)
+            )
             db.commit()
             flash("Account created! You can now log in.", "success")
             return redirect(url_for('login'))
@@ -235,9 +265,32 @@ def login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             
-            # ZERO KNOWLEDGE:save the user's personal key in the session!
-            session['user_key'] = generate_user_key(password,username).decode('utf-8')  
-            
+            # ZERO KNOWLEDGE: save the user's personal key in the session!
+            user_key = generate_user_key(password, username)
+            session['user_key'] = user_key.decode('utf-8')
+
+            # Generate RSA keys for old accounts that registered before this feature
+            if not user.get('public_key'):
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537, key_size=2048, backend=default_backend()
+                )
+                pub_pem = private_key.public_key().public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                ).decode('utf-8')
+                priv_pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+                encrypted_priv = Fernet(user_key).encrypt(priv_pem).decode('utf-8')
+                db2 = get_db_connection()
+                c2 = db2.cursor()
+                c2.execute("UPDATE users SET public_key=%s, encrypted_private_key=%s WHERE id=%s",
+                           (pub_pem, encrypted_priv, user['id']))
+                db2.commit()
+                db2.close()
+
             # remember me logic
             if remember:
                 session.permanent = True # Cookie lasts for a month
@@ -337,6 +390,14 @@ def rotate_key():
             new_encrypted = new_cipher.encrypt(plain_text.encode()).decode()
             #overwrite in database
             cursor.execute("UPDATE my_vault SET password = %s WHERE id = %s", (new_encrypted, item['id']))
+
+        #re-encrypt the RSA private key with the new master key so inbox still works
+        cursor.execute("SELECT encrypted_private_key FROM users WHERE id = %s", (user_id,))
+        key_row = cursor.fetchone()
+        if key_row and key_row['encrypted_private_key']:
+            plain_priv = old_cipher.decrypt(key_row['encrypted_private_key'].encode())
+            new_encrypted_priv = new_cipher.encrypt(plain_priv).decode('utf-8')
+            cursor.execute("UPDATE users SET encrypted_private_key = %s WHERE id = %s", (new_encrypted_priv, user_id))
         
         #update the user's login hash in MariaDB
         new_hash = generate_password_hash(new_password)
@@ -543,6 +604,134 @@ def history():
     
     return render_template('history.html', logs=logs)
 
+@app.route('/share_password', methods=['POST'])
+@login_required
+def share_password():
+    sender_id = session.get('user_id')
+    sender_username = session.get('username')
+    receiver_username = request.form['receiver_username']
+    
+    vault_item_id = request.form.get('vault_item_id') # From the dropdown
+    note = request.form.get('note', '')
+
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    
+    #fetch the receiver's Public Key
+    cursor.execute("SELECT public_key FROM users WHERE username = %s", (receiver_username,))
+    receiver = cursor.fetchone()
+    
+    #silent failure: prevent enumeration
+    if not receiver:
+        db.close()
+        log_audit_event(sender_id, "Secure Mail", receiver_username, "Message Sent")
+        flash("Message securely sent!", "success")
+        return redirect(url_for('home'))
+
+    #load public key
+    receiver_public_key = serialization.load_pem_public_key(
+        receiver['public_key'].encode('utf-8'),
+        backend=default_backend()
+    )
+
+    website = ""
+    account_username = ""
+    safe_encrypted_password = None
+    safe_encrypted_note = None
+
+    #handle password (if selected)
+    if vault_item_id:
+        cursor.execute("SELECT website, username, password FROM my_vault WHERE id = %s AND user_id = %s", (vault_item_id, sender_id))
+        item = cursor.fetchone()
+        
+        if item:
+            website = item['website']
+            account_username = item['username']
+            
+            sender_cipher = Fernet(session.get('user_key').encode('utf-8'))
+            plaintext_password = sender_cipher.decrypt(item['password'].encode('utf-8'))
+            
+            encrypted_pw = receiver_public_key.encrypt(
+                plaintext_password,
+                padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+            )
+            safe_encrypted_password = base64.b64encode(encrypted_pw).decode('utf-8')
+
+    #handle note (if typed)
+    if note:
+        encrypted_note = receiver_public_key.encrypt(
+            note.encode('utf-8'),
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+        )
+        safe_encrypted_note = base64.b64encode(encrypted_note).decode('utf-8')
+
+    #save to inbox
+    cursor.execute(
+        "INSERT INTO inbox (sender_id, receiver_username, website, account_username, encrypted_password, encrypted_note) VALUES (%s, %s, %s, %s, %s, %s)",
+        (sender_id, receiver_username, website, account_username, safe_encrypted_password, safe_encrypted_note)
+    )
+    db.commit()
+    db.close()
+
+    log_audit_event(sender_id, "Secure Mail", receiver_username, "Message Sent")
+    flash("Message securely sent!", "success")
+    return redirect(url_for('home'))
+
+
+@app.route('/inbox', methods=['GET'])
+@login_required
+def view_inbox():
+    user_id = session.get('user_id')
+    username = session.get('username')
+    user_key = session.get('user_key') 
+    
+    db = get_db_connection()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    
+    cursor.execute("SELECT encrypted_private_key FROM users WHERE id = %s", (user_id,))
+    user_data = cursor.fetchone()
+    
+    cursor.execute("SELECT inbox.*, users.username AS sender_name FROM inbox JOIN users ON inbox.sender_id = users.id WHERE receiver_username = %s ORDER BY timestamp DESC", (username,))
+    inbox_items = cursor.fetchall()
+    db.close()
+
+    decrypted_inbox = []
+    
+    if user_data and inbox_items:
+        try:
+            cipher = Fernet(user_key.encode('utf-8'))
+            decrypted_priv_pem = cipher.decrypt(user_data['encrypted_private_key'].encode('utf-8'))
+            
+            private_key = serialization.load_pem_private_key(
+                decrypted_priv_pem, password=None, backend=default_backend()
+            )
+            
+            for item in inbox_items:
+                #decrypt password
+                if item['encrypted_password']:
+                    raw_pw = base64.b64decode(item['encrypted_password'])
+                    item['decrypted_password'] = private_key.decrypt(
+                        raw_pw, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                    ).decode('utf-8')
+                else:
+                    item['decrypted_password'] = None
+                    
+                #decrypt Note
+                if item['encrypted_note']:
+                    raw_note = base64.b64decode(item['encrypted_note'])
+                    item['decrypted_note'] = private_key.decrypt(
+                        raw_note, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                    ).decode('utf-8')
+                else:
+                    item['decrypted_note'] = None
+                    
+                decrypted_inbox.append(item)
+                
+        except Exception as e:
+            print(f"RSA Decryption Error: {e}")
+            flash("Error unlocking inbox.", "danger")
+
+    return render_template('inbox.html', inbox_items=decrypted_inbox)
 
 
 if __name__ == '__main__':
