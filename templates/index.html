@@ -203,8 +203,7 @@
                     <button type="button" class="generate-btn" onclick="generatePassword()">Generate Password</button>
                 </div>
                 <small style="color: #666; display: block; margin-top: -15px; margin-bottom: 15px;">Click "Generate" for
-                    a
-                    strong random password.</small>
+                    a strong random password.</small>
                 <button type="submit" class="primary-btn">Check & Save to Vault</button>
             </form>
 
@@ -308,10 +307,10 @@
             function requestDecryption(itemId) {
                 let savedMasterPassword = sessionStorage.getItem("tempMasterKey");
 
-                // Check if it's already showing the password, if so, hide it
+                //check if it's already showing the password, if so, hide it
                 let displaySpan = document.getElementById('pass-' + itemId);
-                if (displaySpan.innerText !== '********') {
-                    displaySpan.innerText = '********';
+                if (!displaySpan.innerText.startsWith('*')) {
+                    displaySpan.innerText = '**********';
                     return;
                 }
 

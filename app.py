@@ -75,7 +75,6 @@ def check_leaked_local(password):
 
 
 def check_leaked(password):
-
     #scramble user's password using SHA-1 math(gibberish)
     sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
     
@@ -128,7 +127,7 @@ def get_vault_items():
 
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
-    cursor.execute("SELECT * FROM my_vault WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT * FROM my_vault WHERE user_id = %s ORDER BY id DESC", (user_id,))
     items = cursor.fetchall()
     db.close()
 
@@ -224,6 +223,9 @@ def api_register_check():
     if not new_password:
         return jsonify({"status": "empty"})
 
+    if len(new_password) > 128:
+        return jsonify({"status": "refused", "reason": "Password is too long (max 128 characters)."})
+
     stats = zxcvbn(new_password)
     
  
@@ -243,7 +245,7 @@ def generate_user_key(master_password, salt_string):
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt_string.encode('utf-8'), #using username as the salt
-        iterations=600000,                #the 0.5 second delay!
+        iterations=600000,                #the 0.5 second delay
         backend=default_backend()
     )
     return base64.urlsafe_b64encode(kdf.derive(master_password.encode('utf-8')))
@@ -324,6 +326,10 @@ def home():
         if not clean_url.startswith(('http://', 'https://')):
             clean_url = f'http://{clean_url}'
         
+        if len(password) > 128:
+            flash("<strong>REFUSED!</strong> Password is too long. Maximum allowed length is 128 characters.", "danger")
+            return redirect(url_for('home'))
+
         #calculate stats
         stats = zxcvbn(password)
         is_leaked = check_leaked(password)
@@ -424,7 +430,7 @@ def delete_password(id):
     db = get_db_connection()
     cursor = db.cursor(pymysql.cursors.DictCursor)
     
-    # NEW: Fetch the item details BEFORE deleting it so we can log it
+    #Fetch the item details BEFORE deleting it so we can log it
     cursor.execute("SELECT website, username FROM my_vault WHERE id = %s", (id,))
     item = cursor.fetchone()
     
@@ -438,8 +444,9 @@ def delete_password(id):
     
     flash("Password deleted successfully!", "success")
     return redirect(url_for('home'))
-#check if we have a password for the current website
-@app.route('/api/get_credentials', methods=['POST'])
+
+
+@app.route('/api/get_credentials', methods=['POST']) #check if we have a password for the current website
 def api_get_credentials():
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Unauthorized!"})  
@@ -485,6 +492,12 @@ def api_check_security():
     new_password = data.get('password')
     website = data.get('url')
     
+    if not new_password:
+        return jsonify({"status": "error", "message": "No password provided."})
+
+    if len(new_password) > 128:
+        return jsonify({"status": "refused", "reason": "Password is too long (max 128 characters)."})
+
     stats = zxcvbn(new_password)
     is_leaked = check_leaked(new_password)
     similar_to = get_similar_password(new_password)
@@ -540,7 +553,7 @@ def api_extension_login():
         return jsonify({"status": "error", "message": "Invalid credentials"})
 
 
-# Health-Check endpoint updated to check for sessions
+#Health-Check endpoint updated to check for sessions
 @app.route('/info', methods=['GET'])
 def api_info():
     if 'user_id' in session:

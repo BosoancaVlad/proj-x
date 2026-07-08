@@ -7,8 +7,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     //Ask the background script what our current state is
     chrome.runtime.sendMessage({ action: "pingServer" }, (response) => {
-        if (response && response.status === "logged_in") {
-            // We are logged into the server-> Now check if the extension is UNLOCKED
+        if (response && response.error) {
+            //server is offline - show it instead of the login form
+            statusSection.style.display = "flex";
+            statusDot.className = "dot offline";
+            statusText.innerText = "Secure Vault is Offline";
+            statusText.style.color = "#dc3545";
+        } else if (response && response.status === "logged_in") {
+            // We are logged into the server -> Now check if the extension is UNLOCKED
             chrome.runtime.sendMessage({ action: "checkLockStatus" }, (lockResponse) => {
                 if (lockResponse.isUnlocked) {
                     showActiveStatus();

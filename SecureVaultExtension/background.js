@@ -5,7 +5,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "getCredentials") {
         fetch("http://127.0.0.1:5000/api/get_credentials", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            // NEW: We now package the master password and send it to Flask!
             body: JSON.stringify({ url: request.url, master_password: sessionMasterPassword })
         }).then(r => r.json()).then(d => sendResponse(d)).catch(e => sendResponse({ error: "Failed" }));
         return true;
